@@ -3189,7 +3189,7 @@ function readHash(){
     if (!pc || vi < 0) return {unavailable:true, requested:raw};
     const V = pc.V[vi], pid = V.s === "j" ? V.P[0]?.[0] : V.pg, b = V.s === "j" ? V.P[0]?.[1]?.[0] : 0;
     if (!BYID[pid] || !BYID[pid].B[b]) return {unavailable:true, requested:raw};
-    return {side:"book", mode:"journal", view:BYID[pid].sourceStatus === "staged-untranscribed" ? "scan" : "words", pid, k:b + "-0"};
+    return {side:"book", mode:"journal", view:BYID[pid].sourceStatus === "staged-untranscribed" || (BYID[pid].derivedRender === "photo" && !V.lines?.some(line=>line.text.trim())) ? "scan" : "words", pid, k:b + "-0"};
   }
   const t = (location.hash || "").slice(1).toLowerCase().replace(/[^a-z0-9-]/g, "").split("-").filter(Boolean);
   const alias = {zoom:"unfold", font:"type"};
