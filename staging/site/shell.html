@@ -3109,7 +3109,7 @@ function selectedSource(){
 // Page-level Variorum entry does not change the line-scoped source used by notes.
 function variorumSource(){
   const source=selectedSource();if(source)return source;
-  if(side!=="book")return null;
+  if(side!=="book"||B.mode!=="journal")return null;
   const g=bookPiece();if(g===null)return null;
   const pc=PIECES[g],version=pc.V[bookCurVer(g)];
   return version?{pieceId:pc.id,versionId:version.id}:null;
