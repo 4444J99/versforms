@@ -728,7 +728,7 @@ function prepData(d){
     o.box = {}; o.unalignedBlocks = new Set();
     o.B.forEach((b, bi) => {
       const boxes = p.x.filter(e => e[0] === bi);
-      const unavailable = b.L.some((_, li) => d.sourceAnchors?.[b.lineIds?.[li] || `${p.id}-${bi}-${li}`]?.status === "unavailable");
+      const unavailable = !p.derivedRender && b.L.some((_, li) => d.sourceAnchors?.[b.lineIds?.[li] || `${p.id}-${bi}-${li}`]?.status === "unavailable");
       if (unavailable || boxes.length !== b.L.length || new Set(boxes.map(e => e[1])).size !== b.L.length || boxes.some(e => !Number.isInteger(e[1]) || e[1] < 0 || e[1] >= b.L.length)) o.unalignedBlocks.add(bi);
     });
     o.validBoxes = p.x.filter(e => !o.unalignedBlocks.has(e[0]));
@@ -3108,6 +3108,7 @@ function selectedSource(){
 }
 // Page-level Variorum entry does not change the line-scoped source used by notes.
 function variorumSource(){
+  if(side==="book" && B.mode!=="journal")return null;
   const source=selectedSource();if(source)return source;
   if(side!=="book"||B.mode!=="journal")return null;
   const g=bookPiece();if(g===null)return null;
@@ -3143,7 +3144,7 @@ function openVariorum(pieceId, initialVersionId, single=false){
   const first=maps[pivot]?.version_part_order||[],seen=new Set(first.map(rowKey)),order=[...first,...rows.filter(r=>!seen.has(rowKey(r)))];
   if(!order.length){for(const v of versions){const cell=make('div');cell.className='vf-cell';if(v.render==='photo'&&v.photo?.url){const image=document.createElement('img');image.src=v.photo.url;image.alt='';image.style.maxWidth='100%';cell.append(image);}for(const line of sourceLines(v)){const p=make('p',line.text);if(line.breakBefore)p.style.marginTop='1.5em';cell.append(p);}grid.append(cell);}return;}
   for(const row of order)for(const v of versions){const cell=make('div'),mapped=maps[v.id]?.segments?.[row.partId],occ=mapped?.find(o=>o.occurrence===row.occurrence),lineMap=new Map(sourceLines(v).map(l=>[l.lineId,l]));cell.className='vf-cell';cell.dataset.part=rowKey(row);const label=make('span',parts.find(p=>p.id===row.partId)?.name||String((pc.variorum.canonicalOrder||[]).indexOf(row.partId)+1));label.className='vf-part-label';cell.append(label);
-   if(occ){for(const id of occ.lines){const line=lineMap.get(id);const p=make('p',line?.text||'');p.tabIndex=0;p.onclick=()=>{for(const c of grid.children)c.classList.toggle('vf-comparison',c.dataset.part===rowKey(row));};cell.append(p);}}
+   if(occ){for(const id of occ.lines){const line=lineMap.get(id);const p=make('p',line?.text||'');p.tabIndex=0;p.setAttribute("role","button");p.setAttribute("aria-pressed","false");p.onclick=()=>{for(const c of grid.children){const selected=c.dataset.part===rowKey(row);c.classList.toggle('vf-comparison',selected);for(const control of c.querySelectorAll('[role="button"]'))control.setAttribute("aria-pressed",String(selected));}};p.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();p.click();}};cell.append(p);}}
    else {cell.dataset.state=mapped?.length===0?'absent':mapped===undefined?'untagged':'unavailable';cell.setAttribute('aria-label',cell.dataset.state);cell.append(make('span','—'));}
    const provenance=make('span',(v.provenance||[]).map(p=>p.label||'').filter(Boolean).join(' · '));provenance.className='vf-part-label';cell.append(provenance);cell.onpointerdown=()=>{cell._hold=setTimeout(()=>dialog.classList.add('vf-labels'),500);};const stop=()=>clearTimeout(cell._hold);cell.onpointerup=stop;cell.onpointercancel=stop;grid.append(cell);
   }
