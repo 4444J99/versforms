@@ -966,7 +966,7 @@ function buildItems(){
     if (L.scan){ it.lx = L.scan.lx; it.ly = L.scan.ly; }
     FONTS.push(L.font = it);
     if(P[L.pi].derivedRender){const p=P[L.pi],b=L.box;
-      const scan=mk("s"+L.li,"f",it.w,it.h,{pi:L.pi,li:L.li,L,fs,derivedLayout:true,lx:b?((b[0]+b[2])/2-.5)*p.W:0,ly:b?((b[1]+b[3])/2-.5)*p.H:0});
+      const scan=mk("s"+L.li,"s",it.w,it.h,{pi:L.pi,li:L.li,L,fs,derivedLayout:true,lx:b?((b[0]+b[2])/2-.5)*p.W:0,ly:b?((b[1]+b[3])/2-.5)*p.H:0});
       SCANS.push(L.scan=scan);it.lx=scan.lx;it.ly=scan.ly;
     }
   }
@@ -1555,6 +1555,13 @@ function pageSrc(it, need, tile, prio){
   const o = SP.get("P" + it.pi + ":" + (big === 8 ? 16 : 8)); if (o){ o.u = frameNo; return [o.b, 0, 0, o.w, o.h]; }
   return raw;
 }
+// Released photographs are display assets, independent of source-ink sprites.
+const derivedPhotos=new Map();
+function derivedPhoto(url){
+  let image=derivedPhotos.get(url);
+  if(!image){image=new Image();derivedPhotos.set(url,image);image.onload=()=>{tileGen++;clearTiles();setDirty();};image.src=url;}
+  return image.complete && image.naturalWidth ? image : null;
+}
 function drawItem(g, it, am, S, ox, oy, tile, straighten, prio, ov){
   const st = ov || {x:it.dx, y:it.dy, r:it.dr, s:it.ds, a:it.da};
   const a = st.a * am; if (a < .004 || it.hide) return;
@@ -1569,12 +1576,12 @@ function drawItem(g, it, am, S, ox, oy, tile, straighten, prio, ov){
     if (!occCv) return;
     g.globalCompositeOperation = "source-over"; g.globalAlpha = Math.min(1, a) * OCC_A;
     drawOcc(g, w, h);
-  } else if (it.kind === "s"){
+  } else if (it.kind === "s" && !it.derivedLayout){
     const src = lineSrc(it, h * k, tile, prio);
     if (!src){ g.globalAlpha = a * .18; g.globalCompositeOperation = "source-over"; g.fillStyle = TH.ink; g.fillRect(-w / 2 + w * .06, -h * .12, w * .88, h * .24); return; }
     g.globalAlpha = a; g.globalCompositeOperation = TH.blend;
     g.drawImage(src[0], src[1], src[2], src[3], src[4], -w / 2, -h / 2, w, h);
-  } else if (it.kind === "f"){
+  } else if (it.kind === "f" || it.derivedLayout){
     const px = it.fs * k;
     g.globalCompositeOperation = "source-over"; g.fillStyle = TH.ink;
     if (px < (tile || settled ? 1 : 3)){ g.globalAlpha = a * .22; g.fillRect(-w / 2 + it.fs * .15, -it.fs * .2, w - it.fs * .3, it.fs * .4); return; }
@@ -1588,6 +1595,10 @@ function drawItem(g, it, am, S, ox, oy, tile, straighten, prio, ov){
     g.fillStyle = TH.sheet; g.fillRect(-w / 2, -h / 2, w, h);
     const page=P[it.pi];
     if(page.derivedRender){
+      if(page.derivedRender==='photo' && page.photo?.url){
+        const image=derivedPhoto(page.photo.url);
+        if(image){const scale=Math.min(w/image.naturalWidth,h/image.naturalHeight),pw=image.naturalWidth*scale,ph=image.naturalHeight*scale;g.drawImage(image,-pw/2,-ph/2,pw,ph);}return;
+      }
       g.globalCompositeOperation="source-over";g.fillStyle=TH.ink;g.font='34px "ajp-scribbles"';g._f=0;g.textAlign="left";g.textBaseline="top";
       page.B[0].L.forEach((text,i)=>{const b=page.box['0-'+i];g.fillText(text,-w/2+b[2]*w,-h/2+b[3]*h);});return;
     }
@@ -2004,6 +2015,7 @@ function geom(v){
   return v.pages.map((p, i) => { const b = boxes[i]; return {p, x:ox + (b[0] - fr[0]) * s, y:oy + (b[1] - fr[1]) * s, w:(b[2] - b[0]) * s, h:(b[3] - b[1]) * s}; });
 }
 function rectsSVG(p, cls = ""){
+  if(p.derivedRender)return "";
   let r = "";
   for (const e of p.validBoxes){ const [b, l, x0, y0, x1, y1] = e;
     r += `<rect data-k="${b}-${l}" x="${(x0 * p.iw).toFixed(1)}" y="${(y0 * p.ih).toFixed(1)}" width="${((x1 - x0) * p.iw).toFixed(1)}" height="${((y1 - y0) * p.ih).toFixed(1)}" rx="${(.004 * p.iw).toFixed(1)}"></rect>`; }
@@ -2042,7 +2054,7 @@ function studyTextHTML(p){
     b.L.forEach((raw, li) => {
       const nd = b._n[li];
       if (isQuote(nd)){ h += `<div class="ln q" role="separator"></div>`; return; }
-      const box = p.box[bi + "-" + li], ind = indentOf(raw);
+      const box = !p.derivedRender && p.box[bi + "-" + li], ind = indentOf(raw);
       const cls = "ln" + (b.t === 1 ? " ttl" : "") + (b.t === 3 ? " mg" : "") + (box ? " has" : "");
       h += `<div class="${cls}" data-k="${bi}-${li}"${box ? ` tabindex="0"` : ""}${ind ? ` style="padding-left:${(ind * .28).toFixed(2)}em"` : ""}>${rn(nd, ctx) || " "}</div>`;
     });
@@ -2050,6 +2062,7 @@ function studyTextHTML(p){
   return h;
 }
 function thumbStyle(p, H){
+  if(p.derivedRender==='photo' && p.photo?.url)return `width:${p.iw*H/p.ih}px;height:${H}px;background-image:url(${esc(JSON.stringify(p.photo.url))});background-size:contain;background-position:center;background-repeat:no-repeat`;
   if(p.derivedRender){const c=document.createElement("canvas");c.width=p.iw;c.height=p.ih;const g=c.getContext("2d");g.fillStyle=TH.sheet;g.fillRect(0,0,c.width,c.height);g.fillStyle=TH.ink;g.font='34px "ajp-scribbles"';g.textBaseline="top";p.B[0].L.forEach((t,i)=>{const b=p.box['0-'+i];g.fillText(t,b[2]*p.iw,b[3]*p.ih);});return `width:${p.iw*H/p.ih}px;height:${H}px;background-image:url(${c.toDataURL()});background-size:contain`;}
   if (!p.a) return `width:${(p.iw * H / p.ih).toFixed(1)}px;height:${H}px;background-image:url(img/m/${esc(p.id)}.jpg);background-size:contain;background-position:center`;
   const a = p.a, AW = ATLAS_SZ[a[0]], f = H / a[4];
@@ -2105,7 +2118,9 @@ function renderStudy(dir = 0){
   if (narrow){ sh = Math.min(avH * .42, (W - 32) * ih / iw); sw = sh * iw / ih; }
   else { sh = avH; sw = Math.min(W * .46, sh * iw / ih); sh = sw * ih / iw; }
   let scan;
-  if (useSpread){
+  if(p.derivedRender){
+    scan=leafHTML({p,x:0,y:0,w:sw,h:sh});
+  } else if (useSpread){
     const cb = sp.cb;
     scan = `<div class="leaf" data-pid="${p.id}" style="width:${sw.toFixed(1)}px;height:${sh.toFixed(1)}px"><img src="img/s/${sp.f}.jpg" alt="Spread" draggable="false" style="height:100%">` +
       `<svg viewBox="0 0 3300 2550" preserveAspectRatio="none" aria-hidden="true">${cb ? `<rect class="crop" x="${cb[0]}" y="${cb[1]}" width="${cb[2] - cb[0]}" height="${cb[3] - cb[1]}"></rect>` : ""}</svg></div>`;
@@ -2548,16 +2563,17 @@ function onScreen(q, m = 0){ return q.cx + q.w > -m && q.cx - q.w < VW + m && q.
 function bitmapFor(it){ // a canvas carrying the line or page as drawn on the constellation
   const p = P[it.pi];
   let src = null;
-  if (it.kind === "s"){
+  if (it.kind === "s" && !it.derivedLayout){
     for (const t of [2, 1, 0]){ const s = SP.get("L" + it.li + ":" + t); if (s){ src = [s.b, 0, 0, s.w, s.h]; break; } }
     if (!src) src = lineSrc(it, 0, true, 0);
-  } else if (it.kind === "p"){
+  } else if (it.kind === "p" && !p.derivedRender){
     for (const k of [16, 8]){ const s = SP.get("P" + it.pi + ":" + k); if (s){ src = [s.b, 0, 0, s.w, s.h]; break; } }
     if (!src) src = pageSrc(it, 0, true, 0);
   }
   const ar = it.w / it.h, W = Math.min(it.kind === "p" ? 700 : 900, Math.max(40, src ? src[3] : 200)), H = Math.max(8, W / ar);
   const c = document.createElement("canvas"); c.width = Math.round(W); c.height = Math.round(H);
   const x = c.getContext("2d");
+  if(p.derivedRender){drawItem(x,it,1,c.width/it.w,0,0,true,0,0,{x:it.w/2,y:it.h/2,r:0,s:1,a:1});return c;}
   if (it.kind === "p"){ x.fillStyle = TH.sheet; x.fillRect(0, 0, c.width, c.height); }
   if (src){ x.globalCompositeOperation = it.kind === "p" ? TH.blend : "source-over"; x.drawImage(src[0], src[1], src[2], src[3], src[4], 0, 0, c.width, c.height); }
   if (it.kind === "p"){ c.style.mixBlendMode = "normal"; c.style.boxShadow = "0 14px 34px -14px var(--sh-2)"; }
@@ -3036,6 +3052,7 @@ function keepControlFocus(e){
   return true;
 }
 document.addEventListener("keydown", e => {
+  if(variorumClose)return;
   const inField = e.target.closest && e.target.closest("input,textarea,select,[contenteditable='true']");
   if (e.key === "Escape"){
     if (panelOpen()){ closePanels(true); e.preventDefault(); return; }
@@ -3095,7 +3112,10 @@ function openVariorum(pieceId, initialVersionId, single=false){
  const maps=pc.variorum?.maps||{},parts=pc.variorum?.parts||[];
  const sourceLines=v=>{
   if(Array.isArray(v.lines))return v.lines;
-  const lines=[];for(const [pg,bs]of v.P||[]){const p=BYID[pg];for(const bi of bs){const b=p?.B[bi];for(const [li,text]of (b?.L||[]).entries())lines.push({lineId:b.lineIds?.[li]||`${pg}-${bi}-${li}`,text,breakBefore:lines.length>0&&li===0});}}return lines;
+  const pages=v.s==='s'&&v.pg?[[v.pg,(BYID[v.pg]?.B||[]).map((_,i)=>i)]]:v.P||[];
+  const lines=[];
+  for(const [pg,bs]of pages){const p=BYID[pg];for(const bi of bs){const b=p?.B[bi];for(const [li,nodes]of (b?._n||[]).entries())lines.push({lineId:b.lineIds?.[li]||`${pg}-${bi}-${li}`,text:cleanText(nodes),breakBefore:lines.length>0&&li===0});}}
+  return lines;
  };
  const origin=document.activeElement,abort=new AbortController(),dialog=document.createElement('dialog'),toolbar=document.createElement('div'),grid=document.createElement('div');
  dialog.className='variorum-dialog';dialog.setAttribute('aria-label',single?'Version':'Variorum');
@@ -3122,7 +3142,7 @@ function openVariorum(pieceId, initialVersionId, single=false){
  if(document.fonts)document.fonts.ready.then(()=>{if(dialog.isConnected)draw();});
 }
 const variorumButton=document.createElement('button');variorumButton.type='button';variorumButton.className='b';variorumButton.textContent='Variorum';variorumButton.id='v-variorum';variorumButton.onclick=()=>{const source=selectedSource();if(source)openVariorum(source.pieceId,source.versionId);};document.querySelector('#dock-ver').append(variorumButton);
-document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='v'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)){const source=selectedSource();if(source){e.preventDefault();openVariorum(source.pieceId,source.versionId);}}});
+document.addEventListener('keydown',e=>{if(variorumClose||e.repeat)return;if(e.key?.toLowerCase()==='v'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable]')){const source=selectedSource();if(source){e.preventDefault();openVariorum(source.pieceId,source.versionId);}}});
 
 function selectedSourceBinding(){
   const source = selectedSource(); if (!source) return null;
@@ -3252,6 +3272,8 @@ window.__jc = {openVariorum, stats, cam, get state(){ return content + "-" + arr
   tallest(kind = "f"){ let b = null; for (const g in STK[kind]){ const ly = STK[kind][g][0]; if (!b || ly.h > b.h) b = ly; } return b ? b.items[0].k : null; },
   stackSig(){ const m = layoutFor(content, arr); let s = 0, n = 0; for (const o of OCCS){ const v = m.get(o.k); if (v){ n++; s += Math.round(v.x) * 3 + Math.round(v.y) + Math.round(v.r * 1000); } } return [n, s]; },
   pieceItem(id, kind = "s"){ const pc = PIECES.find(x => x.id === id); if (!pc) return null; const ls = STK[kind][pc.g]; return ls ? ls[0].items[0].k : null; },
+  derivedEvidence(){return ITEMS.filter(i=>P[i.pi]?.derivedRender).map(i=>({key:i.k,kind:i.kind,page:P[i.pi].id,active:i.tg.a,finite:[i.tg.x,i.tg.y,i.tg.r,i.tg.s].every(Number.isFinite)}));},
+  pageBitmap(id){const p=BYID[id];return p?bitmapFor(PAGES[p.i]).toDataURL():null;},
   renderEvidence(){return {pages:P.filter(p=>p.derivedRender).length,scanItems:SCANS.filter(i=>i.derivedLayout).length,fontItems:FONTS.filter(i=>P[i.pi].derivedRender).length};},
   pieces(){ return PIECES.filter(p => p.n > 1).map(p => ({id:p.id, n:p.n, top:p.V[p.top].id, scans:p.V.filter(v => v.s === "s").map(v => v.id)})); }};
 boot();
