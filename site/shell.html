@@ -3022,7 +3022,9 @@ document.addEventListener("keydown", e => {
   if (keepControlFocus(e)) return;
   if (inField || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === "/"){ e.preventDefault(); openSearch(); return; }
-  if (!ov.hidden || panelOpen() || (e.target.closest && e.target.closest("button,a[href]"))) return;
+  if (!ov.hidden || panelOpen()) return;
+  const control = e.target.closest && e.target.closest("button,a[href]");
+  if (control && (control !== menuButton || e.key === "Enter" || e.key === " ")) return;
   if (e.key === " " && !(e.target.closest && e.target.closest(".sheet"))){ e.preventDefault(); showUI(true); return; }
   if (e.key === "b" || e.key === "B"){ if (side === "canvas") openBookFrom(focus && !focus.out ? focus.it : nearestCenter()); else closeBook(); return; }
   if (side === "canvas"){
