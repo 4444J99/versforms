@@ -2999,7 +2999,7 @@ function setHash(){
   else if (B.mode === "hf") h = "hand-" + (B.hfId || "unavailable");
   else { h = (B.view === "scan" ? "read" : B.view) + "-" + B.pid; if (B.focus && B.focus.pid === B.pid) h += "-" + B.focus.k; }
   if (("#" + h) === location.hash) return;
-  try { history.replaceState(null, "", "#" + h); } catch(e){}
+  try { history.replaceState(null, "", location.pathname + location.search + "#" + h); } catch(e){}
 }
 function readHash(){
   const raw = (location.hash || "").slice(1);
