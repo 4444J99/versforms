@@ -3273,7 +3273,6 @@ window.__jc = {openVariorum, stats, cam, get state(){ return content + "-" + arr
   stackSig(){ const m = layoutFor(content, arr); let s = 0, n = 0; for (const o of OCCS){ const v = m.get(o.k); if (v){ n++; s += Math.round(v.x) * 3 + Math.round(v.y) + Math.round(v.r * 1000); } } return [n, s]; },
   pieceItem(id, kind = "s"){ const pc = PIECES.find(x => x.id === id); if (!pc) return null; const ls = STK[kind][pc.g]; return ls ? ls[0].items[0].k : null; },
   derivedEvidence(){return ITEMS.filter(i=>P[i.pi]?.derivedRender).map(i=>({key:i.k,kind:i.kind,page:P[i.pi].id,active:i.tg.a,finite:[i.tg.x,i.tg.y,i.tg.r,i.tg.s].every(Number.isFinite)}));},
-  hiddenBitmapEvidence(id,kind="p"){const p=BYID[id],it=p&&ITEMS.find(i=>i.pi===p.i&&i.kind===kind);if(!it)return null;const wasHidden=it.hide;it.hide=true;try{const c=bitmapFor(it),pixels=c.getContext("2d").getImageData(0,0,c.width,c.height).data;let visible=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i])visible++;return {hidden:it.hide,visible};}finally{it.hide=wasHidden;}},
   pageBitmap(id){const p=BYID[id];return p?bitmapFor(PAGES[p.i]).toDataURL():null;},
   renderEvidence(){return {pages:P.filter(p=>p.derivedRender).length,scanItems:SCANS.filter(i=>i.derivedLayout).length,fontItems:FONTS.filter(i=>P[i.pi].derivedRender).length};},
   pieces(){ return PIECES.filter(p => p.n > 1).map(p => ({id:p.id, n:p.n, top:p.V[p.top].id, scans:p.V.filter(v => v.s === "s").map(v => v.id)})); }};
