@@ -1,0 +1,7 @@
+name = "versforms-staging"
+compatibility_date = "2026-11-06"
+pages_build_output_dir = "site"
+
+[[r2_buckets]]
+binding = "PUBLIC"
+bucket_name = "versforms-staging"

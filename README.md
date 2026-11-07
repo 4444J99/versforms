@@ -7,3 +7,10 @@ This repository holds only what has been released. Everything here is generated 
 `site/` by hand. Until the first poem is released the site is blank paper.
 
 All writing and handwriting in `site/` is © the author. Nothing here is licensed for reuse.
+
+
+The reader serves the immutable snapshot named by the R2 current pointer. Its only data binding is PUBLIC; it has no Studio database or private-photo binding. No current pointer serves blank paper. Every response remains noindex.
+
+The approved engine template is site/shell.html; shell.json records its SHA-256. Studio publication must match that pin, filter unpublished page metadata, and verify the complete snapshot before moving the pointer. Public engine changes remain reviewed repository changes.
+
+Run node --test tests/public-reader.test.mjs to verify reader isolation, blank state, snapshot paths, cache headers and missing-image handling. Staging is a standalone Pages project rooted at staging/, using its own library, assets and staging bucket configuration.

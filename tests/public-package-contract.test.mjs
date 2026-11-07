@@ -1,0 +1,6 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
+test('production and staging package readers and pinned shells stay identical',async()=>{for(const [a,b]of [['../lib/public-reader.js','../staging/lib/public-reader.js'],['../site/shell.html','../staging/site/shell.html']])assert.deepEqual(await readFile(new URL(a,import.meta.url)),await readFile(new URL(b,import.meta.url)));});
+for(const file of ['../site/shell.html','../staging/site/shell.html'])test(file+' keeps bookmark paths canonical with snapshot-pinned assets',async()=>{const html=await readFile(new URL(file,import.meta.url),'utf8');const code=html.slice(html.indexOf('function setHash(){'),html.indexOf('function readHash(){'));assert.ok(code);let actual;const location={hash:'',pathname:'/',search:'?view=paper'};runInNewContext(code+'setHash();',{B:{},side:'canvas',selectedSource:()=>({}),sourceHash:()=> 'piece/p001/v0',location,history:{replaceState(_state,_title,url){actual=new URL(url,'https://reader.invalid/_snapshot/'+ 'a'.repeat(64)+'/').href;}}});assert.equal(actual,'https://reader.invalid/?view=paper#piece/p001/v0');});

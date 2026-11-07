@@ -1,1 +1,5 @@
 .DS_Store
+
+# Runtime source, not a generated library directory.
+!/lib/
+!/lib/public-reader.js
