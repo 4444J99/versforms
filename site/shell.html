@@ -2036,6 +2036,7 @@ function wordsHTML(p){
     if (bi > 0) h += `<div class="wl sp" aria-hidden="true"></div>`;
     if (b.t === 5){ h += `<div class="wl sp" aria-hidden="true"></div>`; return; }
     b.L.forEach((raw, li) => {
+      if(bi===0 && p.frozenLines?.[li]?.breakBefore)h+=`<div class="wl sp" aria-hidden="true"></div>`;
       const nd = b._n[li];
       if (isQuote(nd)){ h += `<div class="wl q" role="separator"></div>`; return; }
       const ind = indentOf(raw);
@@ -2052,6 +2053,7 @@ function studyTextHTML(p){
     if (bi > 0) h += `<div class="ln gap" aria-hidden="true"></div>`;
     if (b.t === 5) return;
     b.L.forEach((raw, li) => {
+      if(bi===0 && p.frozenLines?.[li]?.breakBefore)h+=`<div class="ln gap" aria-hidden="true"></div>`;
       const nd = b._n[li];
       if (isQuote(nd)){ h += `<div class="ln q" role="separator"></div>`; return; }
       const box = !p.derivedRender && p.box[bi + "-" + li], ind = indentOf(raw);
@@ -2690,7 +2692,7 @@ function finishToBook(){
   syncControls();
   if (document.activeElement && document.activeElement !== body && document.activeElement !== menuButton && !ov.contains(document.activeElement)) document.activeElement.blur();
 }
-function pinchClose(){ if (side === "book" && !xfer){const source=selectedSource();if(source&&PIECES.find(p=>p.id===source.pieceId)?.n>1)openVariorum(source.pieceId,source.versionId);else closeBook();} }
+function pinchClose(){ if (side === "book" && !xfer){const source=variorumSource();if(source&&PIECES.find(p=>p.id===source.pieceId)?.n>1)openVariorum(source.pieceId,source.versionId);else closeBook();} }
 function closeBook(){
   if (xfer || side !== "book") return;
   closePanels(); hideUI(true); stopPlay(); stopHF(); sourceChanged(); B.unavailableHash = null;
@@ -3104,6 +3106,14 @@ function selectedSource(){
   if (!L || !PIECES[L.piece] || L.vi === undefined) return null;
   return {pieceId:PIECES[L.piece].id, versionId:PIECES[L.piece].V[L.vi].id};
 }
+// Page-level Variorum entry does not change the line-scoped source used by notes.
+function variorumSource(){
+  const source=selectedSource();if(source)return source;
+  if(side!=="book")return null;
+  const g=bookPiece();if(g===null)return null;
+  const pc=PIECES[g],version=pc.V[bookCurVer(g)];
+  return version?{pieceId:pc.id,versionId:version.id}:null;
+}
 /* Variorum: a view of the existing stack, with one vertical row grid. */
 let variorumClose = null;
 function openVariorum(pieceId, initialVersionId, single=false){
@@ -3141,8 +3151,8 @@ function openVariorum(pieceId, initialVersionId, single=false){
  dialog.append(toolbar,grid);document.body.append(dialog);dialog.addEventListener('cancel',e=>{e.preventDefault();close();},{signal:abort.signal});document.addEventListener('reader:sourcechange',close,{signal:abort.signal});grid.className='vf-grid';draw();dialog.showModal();exit.focus();
  if(document.fonts)document.fonts.ready.then(()=>{if(dialog.isConnected)draw();});
 }
-const variorumButton=document.createElement('button');variorumButton.type='button';variorumButton.className='b';variorumButton.textContent='Variorum';variorumButton.id='v-variorum';variorumButton.onclick=()=>{const source=selectedSource();if(source)openVariorum(source.pieceId,source.versionId);};document.querySelector('#dock-ver').append(variorumButton);
-document.addEventListener('keydown',e=>{if(variorumClose||e.repeat)return;if(e.key?.toLowerCase()==='v'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable]')){const source=selectedSource();if(source){e.preventDefault();openVariorum(source.pieceId,source.versionId);}}});
+const variorumButton=document.createElement('button');variorumButton.type='button';variorumButton.className='b';variorumButton.textContent='Variorum';variorumButton.id='v-variorum';variorumButton.onclick=()=>{const source=variorumSource();if(source)openVariorum(source.pieceId,source.versionId);};document.querySelector('#dock-ver').append(variorumButton);
+document.addEventListener('keydown',e=>{if(variorumClose||e.repeat)return;if(e.key?.toLowerCase()==='v'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable]')){const source=variorumSource();if(source){e.preventDefault();openVariorum(source.pieceId,source.versionId);}}});
 
 function selectedSourceBinding(){
   const source = selectedSource(); if (!source) return null;
