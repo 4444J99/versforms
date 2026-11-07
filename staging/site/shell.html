@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><style>.variorum-dialog{width:calc(100vw - 24px);max-width:none;height:calc(100dvh - 24px);box-sizing:border-box;background:var(--sheet);color:var(--ink);border:1px solid var(--rule);padding:16px;overflow:auto}.variorum-dialog::backdrop{background:var(--desk)}.variorum-dialog button{background:var(--sheet);color:var(--ink);border:1px solid var(--rule);padding:8px}.vf-grid{display:grid;overflow:visible;gap:0 20px;font-family:var(--f-hand);align-items:stretch}.vf-cell{padding:12px;border-bottom:1px solid var(--rule);white-space:pre-wrap;min-width:260px}.vf-cell p{margin:0;font-size:1.3rem;line-height:1.8}.vf-column-label,.vf-part-label{visibility:hidden;font-family:var(--f-ui);font-size:.75rem}.vf-labels .vf-column-label,.vf-labels .vf-part-label{visibility:visible}.vf-cell[data-state]{color:var(--ink-2)}.vf-comparison{background:var(--tint)}</style></head><body>
 <title>versforms</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
@@ -705,14 +705,25 @@ async function loadData(){
 function prepData(d){
   DATA = d; ATLAS_SZ = d.atlas; GROUPS = d.groups || [];
   // pieces: versions oldest -> newest (V), the current top, and the stack order (st: version indices, top first)
-  PIECES = (d.pieces || []).map((pc, g) => Object.assign({}, pc, {g, n:pc.V.length}));
-  P = d.pages.map((p, i) => {
+  PIECES = (d.pieces || []).map((pc, g) => Object.assign({}, pc, {V:pc.V.map(v=>({...v,P:(v.P||[]).map(m=>[m[0],[...m[1]]])})),g, n:pc.V.length}));
+  // Supplemental text has no source page membership. Internal layout pages are derived,
+  // never exported as source ink or used to establish transcription geometry.
+  const derivedPages=[], measure=document.createElement("canvas").getContext("2d");measure.font='34px "ajp-scribbles"';
+  for(const pc of PIECES)pc.V.forEach((v,vi)=>{
+    if(v.P.length||!['typeset','photo'].includes(v.render))return;
+    const lines=(v.lines||[]).map(l=>({text:l.text,breakBefore:!!l.breakBefore})),width=Math.max(600,...lines.map(l=>measure.measureText(l.text).width+100));
+    let y=70;const boxes=lines.map((l,i)=>{if(l.breakBefore)y+=34;const b=[0,i,50/width,y,Math.max(51,50+measure.measureText(l.text).width)/width,y+44];y+=48;return b;}),height=Math.max(780,y+70);
+    const id='render-'+v.id,photo=v.render==='photo'?v.photo:null;
+    derivedPages.push({id,xv:true,derivedRender:v.render,photo,iw:width,ih:height,W:width,H:height,c:[0,0,1,1],x:boxes.map(b=>[b[0],b[1],b[2],b[3]/height,b[4],b[5]/height]),B:[{t:0,L:lines.map(l=>l.text),lineIds:(v.lines||[]).map(l=>l.lineId),g:[pc.g,Math.max(0,(pc.st||[]).indexOf(vi)),0],v:vi,derivedLayout:true}],frozenLines:lines});
+    v.P=[[id,[0]]];v.s='j';
+  });
+  P = [...d.pages,...derivedPages].map((p, i) => {
     const mx = Math.max(p.iw, p.ih);
     const o = Object.assign({}, p, {i, mh:p.ih * 600 / mx, mw:p.iw * 600 / mx, fh:p.ih * 1200 / mx});
     o.B.forEach((b, bi) => { b._n = b.L.map((raw, li) => {
       const lineId = b.lineIds?.[li] || `${p.id}-${bi}-${li}`;
       const accepted = d.acceptedReadings && d.acceptedReadings[lineId];
-      return parse(typeof accepted === "string" ? accepted : raw);
+      return p.derivedRender ? [{t:"x",s:raw}] : parse(typeof accepted === "string" ? accepted : raw);
     }); });
     o.box = {}; o.unalignedBlocks = new Set();
     o.B.forEach((b, bi) => {
@@ -940,7 +951,7 @@ function buildItems(){
   };
   P.forEach((p, i) => PAGES.push(mk("p" + i, "p", p.W, p.H, {pi:i})));
   for (const L of LN){
-    if (!L.box) continue;
+    if (!L.box || P[L.pi].derivedRender) continue;
     const [x0, y0, x1, y1] = L.box, p = P[L.pi], bh = y1 - y0, pc = p.c, fw = pc[2] - pc[0], fh = pc[3] - pc[1];
     const c = [Math.max(0, x0 - .014), Math.max(0, y0 - .34 * bh), Math.min(1, x1 + .014), Math.min(1, y1 + .34 * bh)];
     SCANS.push(L.scan = mk("s" + L.li, "s", (c[2] - c[0]) / fw * p.W, (c[3] - c[1]) / fh * p.H, {pi:L.pi, li:L.li, L, crop:c,
@@ -954,6 +965,10 @@ function buildItems(){
     const it = mk("f" + L.li, "f", w + fs * .3, fs * 1.3, {pi:L.pi, li:L.li, L, fs});
     if (L.scan){ it.lx = L.scan.lx; it.ly = L.scan.ly; }
     FONTS.push(L.font = it);
+    if(P[L.pi].derivedRender){const p=P[L.pi],b=L.box;
+      const scan=mk("s"+L.li,"f",it.w,it.h,{pi:L.pi,li:L.li,L,fs,derivedLayout:true,lx:b?((b[0]+b[2])/2-.5)*p.W:0,ly:b?((b[1]+b[3])/2-.5)*p.H:0});
+      SCANS.push(L.scan=scan);it.lx=scan.lx;it.ly=scan.ly;
+    }
   }
   // version stacks: each version of a piece is a layer; under every layer but the last, an invisible sheet
   // (desk-coloured, feathered) hides the layers beneath it, so older versions only show at the edges
@@ -1571,6 +1586,11 @@ function drawItem(g, it, am, S, ox, oy, tile, straighten, prio, ov){
     g.globalCompositeOperation = "source-over"; g.globalAlpha = a;
     if (shadowCv && need > 30 && (settled || tile)){ const m = w * .5; g.globalAlpha = a * (TH.dark ? .9 : .75); g.drawImage(shadowCv, -w / 2 - m, -h / 2 - m * h / w, w + 2 * m, h + 2 * m * h / w); g.globalAlpha = a; }
     g.fillStyle = TH.sheet; g.fillRect(-w / 2, -h / 2, w, h);
+    const page=P[it.pi];
+    if(page.derivedRender){
+      g.globalCompositeOperation="source-over";g.fillStyle=TH.ink;g.font='34px "ajp-scribbles"';g._f=0;g.textAlign="left";g.textBaseline="top";
+      page.B[0].L.forEach((text,i)=>{const b=page.box['0-'+i];g.fillText(text,-w/2+b[2]*w,-h/2+b[3]*h);});return;
+    }
     const src = pageSrc(it, need, tile, prio);
     if (src){ g.globalCompositeOperation = TH.blend; g.drawImage(src[0], src[1], src[2], src[3], src[4], -w / 2, -h / 2, w, h); }
   }
@@ -1719,6 +1739,7 @@ cv.addEventListener("pointermove", e => {
     if (gesture.type !== "pinch") Object.assign(gesture, {type:"pinch", moved:true, multi:true}, nb);
     cam.x -= (nb.mx - gesture.mx) / cam.s; cam.y -= (nb.my - gesture.my) / cam.s;
     if (gesture.d > 8 && nb.d > 8) zoomAt(nb.mx, nb.my, clamp(nb.d / gesture.d, .5, 2));
+    if(focus && !focus.out && focus.stk && cam.s < fitPageS * .35 && !variorumClose){const pc=PIECES[focus.stk.g];openVariorum(pc.id,selectedSource()?.versionId);ptrs.clear();}
     Object.assign(gesture, nb); setDirty();
   }
 });
@@ -1990,6 +2011,7 @@ function rectsSVG(p, cls = ""){
 }
 function leafHTML(g){
   const p = g.p;
+  if(p.derivedRender)return `<div class="leaf" data-pid="${esc(p.id)}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px;overflow:auto;background:var(--sheet)">${p.photo?.url?`<img src="${esc(p.photo.url)}" alt="Composite photograph" style="width:100%;height:100%;object-fit:contain">`:wordsHTML(p)}</div>`;
   return `<div class="leaf" data-pid="${p.id}" style="left:${g.x.toFixed(1)}px;top:${g.y.toFixed(1)}px;width:${g.w.toFixed(1)}px;height:${g.h.toFixed(1)}px">` +
     `<img src="img/p/${p.id}.jpg" alt="Page ${esc(label(p.id))}" decoding="async" draggable="false">${rectsSVG(p)}</div>`;
 }
@@ -2028,6 +2050,7 @@ function studyTextHTML(p){
   return h;
 }
 function thumbStyle(p, H){
+  if(p.derivedRender){const c=document.createElement("canvas");c.width=p.iw;c.height=p.ih;const g=c.getContext("2d");g.fillStyle=TH.sheet;g.fillRect(0,0,c.width,c.height);g.fillStyle=TH.ink;g.font='34px "ajp-scribbles"';g.textBaseline="top";p.B[0].L.forEach((t,i)=>{const b=p.box['0-'+i];g.fillText(t,b[2]*p.iw,b[3]*p.ih);});return `width:${p.iw*H/p.ih}px;height:${H}px;background-image:url(${c.toDataURL()});background-size:contain`;}
   if (!p.a) return `width:${(p.iw * H / p.ih).toFixed(1)}px;height:${H}px;background-image:url(img/m/${esc(p.id)}.jpg);background-size:contain;background-position:center`;
   const a = p.a, AW = ATLAS_SZ[a[0]], f = H / a[4];
   return `width:${(a[3] * f).toFixed(1)}px;height:${H}px;background-image:url(img/a/t${a[0]}.jpg);background-size:${(AW[0] * f).toFixed(1)}px ${(AW[1] * f).toFixed(1)}px;background-position:${(-a[1] * f).toFixed(1)}px ${(-a[2] * f).toFixed(1)}px`;
@@ -2651,7 +2674,7 @@ function finishToBook(){
   syncControls();
   if (document.activeElement && document.activeElement !== body && document.activeElement !== menuButton && !ov.contains(document.activeElement)) document.activeElement.blur();
 }
-function pinchClose(){ if (side === "book" && !xfer) closeBook(); }
+function pinchClose(){ if (side === "book" && !xfer){const source=selectedSource();if(source&&PIECES.find(p=>p.id===source.pieceId)?.n>1)openVariorum(source.pieceId,source.versionId);else closeBook();} }
 function closeBook(){
   if (xfer || side !== "book") return;
   closePanels(); hideUI(true); stopPlay(); stopHF(); sourceChanged(); B.unavailableHash = null;
@@ -2839,6 +2862,7 @@ function bookCurVer(g){
 }
 function goVersion(g, vi){
   const pc = PIECES[g], V = pc && pc.V[vi]; if (!V) return;
+  if(!V.P?.length && (V.render === "typeset" || V.render === "photo")){openVariorum(pc.id,V.id,true);return;}
   const pid = V.s === "j" ? V.P[0][0] : V.pg, b = V.s === "j" ? V.P[0][1][0] : 0, to = BYID[pid]; if (!to) return;
   const cur = curPage();
   if (to.xv && !cur.xv) B.ret = cur.id;
@@ -2861,7 +2885,7 @@ function verUI(){
     verKey = key;
     $("#vdots").innerHTML = pc.V.map((V, vi) => {
       if (avail && !avail.has(vi)) return "";
-      const pg = BYID[V.s === "j" ? V.P[0][0] : V.pg];
+      const pg = BYID[V.s === "j" ? V.P?.[0]?.[0] : V.pg];
       const lab = V.d ? String(V.d) : `${vi + 1}/${pc.n}`; // a date when the version has one, otherwise its place in order (1 = earliest)
       return `<button type="button" class="chip" data-vi="${vi}" aria-label="Version ${vi + 1} of ${pc.n}${V.d ? ", " + esc(V.d) : ""}${vi === pc.n - 1 ? ", newest" : ""}">${pg ? `<i class="th" style="${thumbStyle(pg, 34)}"></i>` : ""}<span class="vn">${esc(lab)}</span></button>`;
     }).join("");
@@ -3063,6 +3087,43 @@ function selectedSource(){
   if (!L || !PIECES[L.piece] || L.vi === undefined) return null;
   return {pieceId:PIECES[L.piece].id, versionId:PIECES[L.piece].V[L.vi].id};
 }
+/* Variorum: a view of the existing stack, with one vertical row grid. */
+let variorumClose = null;
+function openVariorum(pieceId, initialVersionId, single=false){
+ if(variorumClose)variorumClose();
+ const pc=PIECES.find(p=>p.id===pieceId);if(!pc)return;
+ const maps=pc.variorum?.maps||{},parts=pc.variorum?.parts||[];
+ const sourceLines=v=>{
+  if(Array.isArray(v.lines))return v.lines;
+  const lines=[];for(const [pg,bs]of v.P||[]){const p=BYID[pg];for(const bi of bs){const b=p?.B[bi];for(const [li,text]of (b?.L||[]).entries())lines.push({lineId:b.lineIds?.[li]||`${pg}-${bi}-${li}`,text,breakBefore:lines.length>0&&li===0});}}return lines;
+ };
+ const origin=document.activeElement,abort=new AbortController(),dialog=document.createElement('dialog'),toolbar=document.createElement('div'),grid=document.createElement('div');
+ dialog.className='variorum-dialog';dialog.setAttribute('aria-label',single?'Version':'Variorum');
+ const make=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
+ const close=()=>{abort.abort();dialog.close();dialog.remove();variorumClose=null;origin?.focus();};variorumClose=close;
+ const exit=make('button','Close');exit.type='button';exit.onclick=close;
+ const labels=make('button','Labels');labels.type='button';labels.setAttribute('aria-pressed','false');labels.onclick=()=>{const shown=labels.getAttribute('aria-pressed')!=='true';labels.setAttribute('aria-pressed',String(shown));dialog.classList.toggle('vf-labels',shown);};toolbar.append(exit,labels);
+ const versions=single?pc.V.filter(v=>v.id===initialVersionId):pc.V;
+ let pivot=initialVersionId;
+ const rowKey=r=>r.partId+'/'+r.occurrence;
+ function draw(){
+  grid.replaceChildren();grid.style.gridTemplateColumns=`repeat(${versions.length},minmax(260px,1fr))`;
+  for(const [vi,v]of versions.entries()){const label=make('button',String(pc.V.indexOf(v)+1));label.className='vf-column-label';label.type='button';label.setAttribute('aria-label','Align to version '+(vi+1));label.onclick=()=>{pivot=v.id;draw();};grid.append(label);}
+  const rows=[];for(const id of pc.variorum?.canonicalOrder||parts.map(p=>p.id)){const values=[...new Set(Object.values(maps).flatMap(m=>(m.segments?.[id]||[]).map(o=>o.occurrence)))].sort((a,b)=>a-b);for(const occurrence of values.length?values:[1])rows.push({partId:id,occurrence});}
+  const first=maps[pivot]?.version_part_order||[],seen=new Set(first.map(rowKey)),order=[...first,...rows.filter(r=>!seen.has(rowKey(r)))];
+  if(!order.length){for(const v of versions){const cell=make('div');cell.className='vf-cell';if(v.render==='photo'&&v.photo?.url){const image=document.createElement('img');image.src=v.photo.url;image.alt='';image.style.maxWidth='100%';cell.append(image);}for(const line of sourceLines(v)){const p=make('p',line.text);if(line.breakBefore)p.style.marginTop='1.5em';cell.append(p);}grid.append(cell);}return;}
+  for(const row of order)for(const v of versions){const cell=make('div'),mapped=maps[v.id]?.segments?.[row.partId],occ=mapped?.find(o=>o.occurrence===row.occurrence),lineMap=new Map(sourceLines(v).map(l=>[l.lineId,l]));cell.className='vf-cell';cell.dataset.part=rowKey(row);const label=make('span',parts.find(p=>p.id===row.partId)?.name||String((pc.variorum.canonicalOrder||[]).indexOf(row.partId)+1));label.className='vf-part-label';cell.append(label);
+   if(occ){for(const id of occ.lines){const line=lineMap.get(id);const p=make('p',line?.text||'');p.tabIndex=0;p.onclick=()=>{for(const c of grid.children)c.classList.toggle('vf-comparison',c.dataset.part===rowKey(row));};cell.append(p);}}
+   else {cell.dataset.state=mapped?.length===0?'absent':mapped===undefined?'untagged':'unavailable';cell.setAttribute('aria-label',cell.dataset.state);cell.append(make('span','—'));}
+   const provenance=make('span',(v.provenance||[]).map(p=>p.label||'').filter(Boolean).join(' · '));provenance.className='vf-part-label';cell.append(provenance);cell.onpointerdown=()=>{cell._hold=setTimeout(()=>dialog.classList.add('vf-labels'),500);};const stop=()=>clearTimeout(cell._hold);cell.onpointerup=stop;cell.onpointercancel=stop;grid.append(cell);
+  }
+ }
+ dialog.append(toolbar,grid);document.body.append(dialog);dialog.addEventListener('cancel',e=>{e.preventDefault();close();},{signal:abort.signal});document.addEventListener('reader:sourcechange',close,{signal:abort.signal});grid.className='vf-grid';draw();dialog.showModal();exit.focus();
+ if(document.fonts)document.fonts.ready.then(()=>{if(dialog.isConnected)draw();});
+}
+const variorumButton=document.createElement('button');variorumButton.type='button';variorumButton.className='b';variorumButton.textContent='Variorum';variorumButton.id='v-variorum';variorumButton.onclick=()=>{const source=selectedSource();if(source)openVariorum(source.pieceId,source.versionId);};document.querySelector('#dock-ver').append(variorumButton);
+document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='v'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)){const source=selectedSource();if(source){e.preventDefault();openVariorum(source.pieceId,source.versionId);}}});
+
 function selectedSourceBinding(){
   const source = selectedSource(); if (!source) return null;
   const binding = DATA?.sourceBindings?.[source.pieceId + "/" + source.versionId];
@@ -3171,7 +3232,7 @@ $("#b-retry").addEventListener("click", () => { $("#err").hidden = true; boot();
 rmq.addEventListener && rmq.addEventListener("change", () => { MOTION = !rmq.matches; applyMotion(); if (!MOTION){ drift.on = false; vel.on = false; } });
 
 /* test hooks (no visible effect) */
-window.__jc = {stats, cam, get state(){ return content + "-" + arr; }, get seed(){ return seed; }, get side(){ return side; }, get settled(){ return settled; },
+window.__jc = {openVariorum, stats, cam, get state(){ return content + "-" + arr; }, get seed(){ return seed; }, get side(){ return side; }, get settled(){ return settled; },
   source: selectedSource, sourceBinding:selectedSourceBinding, sourceLink(source = selectedSource()){ return source ? "#" + sourceHash(source) : null; },
   mountFeatures:mountPrivateFeatures,
   selectVersion(vi){ peelToVersion(vi); }, setState, setMode,
@@ -3191,6 +3252,7 @@ window.__jc = {stats, cam, get state(){ return content + "-" + arr; }, get seed(
   tallest(kind = "f"){ let b = null; for (const g in STK[kind]){ const ly = STK[kind][g][0]; if (!b || ly.h > b.h) b = ly; } return b ? b.items[0].k : null; },
   stackSig(){ const m = layoutFor(content, arr); let s = 0, n = 0; for (const o of OCCS){ const v = m.get(o.k); if (v){ n++; s += Math.round(v.x) * 3 + Math.round(v.y) + Math.round(v.r * 1000); } } return [n, s]; },
   pieceItem(id, kind = "s"){ const pc = PIECES.find(x => x.id === id); if (!pc) return null; const ls = STK[kind][pc.g]; return ls ? ls[0].items[0].k : null; },
+  renderEvidence(){return {pages:P.filter(p=>p.derivedRender).length,scanItems:SCANS.filter(i=>i.derivedLayout).length,fontItems:FONTS.filter(i=>P[i.pi].derivedRender).length};},
   pieces(){ return PIECES.filter(p => p.n > 1).map(p => ({id:p.id, n:p.n, top:p.V[p.top].id, scans:p.V.filter(v => v.s === "s").map(v => v.id)})); }};
 boot();
 })();
